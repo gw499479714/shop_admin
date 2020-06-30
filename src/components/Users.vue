@@ -117,6 +117,7 @@ export default {
         email: '',
         mobile: ''
       },
+      // 表单验证
       rules: {
         username: [
           {required: true, message: '用户名不能为空', trigger: 'change'},
