@@ -39,7 +39,7 @@
                <template slot-scope="scope">
                 <el-button type="primary" icon="el-icon-edit" plain size="mini" @click="showEditDialog(scope.row)"></el-button>
                 <el-button type="danger" icon="el-icon-delete" plain size="mini" @click="delUser(scope.row)"></el-button>
-                <el-button type="success" icon="el-icon-check" plain size="mini">分配角色</el-button>
+                <el-button type="success" icon="el-icon-check" plain size="mini" @click="showAssignDialog(scope.row)">分配角色</el-button>
                </template>
             </el-table-column>
         </el-table>
@@ -97,6 +97,31 @@
           </span>
       </el-dialog>
 
+      <el-dialog
+          title="分配角色"
+          :visible.sync="assignDialogVisible"
+          width="40%">
+          <el-form ref="assignForm" :model="assignForm" label-width="70px" status-icon>
+              <el-form-item label="用户名">
+                <el-tag type="info">{{assignForm.username}}</el-tag>
+              </el-form-item>
+                <el-form-item label="角色列表">
+                  <el-select v-model="assignForm.rid" placeholder="请选择">
+                   <el-option
+                    v-for="item in options"
+                    :key="item.id"
+                    :label="item.roleName"
+                    :value="item.id">
+                   </el-option>
+                  </el-select>
+              </el-form-item>
+          </el-form>
+          <span slot="footer" class="dialog-footer">
+            <el-button @click="assignDialogVisible = false">取 消</el-button>
+            <el-button type="primary" @click="assignRole">确 定</el-button>
+          </span>
+      </el-dialog>
+
     </div>
 </template>
 
@@ -117,7 +142,7 @@ export default {
         email: '',
         mobile: ''
       },
-      // 表单验证
+      // 表单验证2
       rules: {
         username: [
           {required: true, message: '用户名不能为空', trigger: 'change'},
@@ -140,12 +165,19 @@ export default {
         // email: '',
         // mobile: '',
         // id: ''
-      }
+      },
+      assignDialogVisible: false,
+      assignForm: {
+        id: '',
+        username: '',
+        rid: ''
+      },
+      options: []
     }
   },
   methods: {
-    getUserList() {
-      this.axios({
+    async  getUserList() {
+      let res = await this.axios({
         url: 'users',
         method: 'get',
         params: {
@@ -153,13 +185,12 @@ export default {
           pagenum: this.current,
           pagesize: this.pageSize
         }
-      }).then(res => {
-        let {meta: {status}, data: {users, total}} = res.data
-        if (status === 200) {
-          this.userList = users
-          this.total = total
-        }
       })
+      let {meta: {status}, data: {users, total}} = res.data
+      if (status === 200) {
+        this.userList = users
+        this.total = total
+      }
     },
     handleCurrentChange(val) {
       this.current = val
@@ -174,65 +205,58 @@ export default {
     search() {
       this.getUserList()
     },
-    changState(row) {
-      this.axios({
+    async changState(row) {
+      let res = await this.axios({
         url: `users/${row.id}/state/${row.mg_state}`,
         method: 'put'
-      }).then(res => {
+      })
+      let {meta: {status}} = res.data
+      if (status === 200) {
+        this.$message.success('修改状态成功了')
+      } else {
+        this.$message.error('修改状态失败了')
+      }
+    },
+    async delUser(row) {
+      try {
+        await this.$confirm('亲,你确定要删除这个用户吗?', '提示', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning'
+        })
+        let res = await this.axios.delete(`users/${row.id}`)
         let {meta: {status}} = res.data
         if (status === 200) {
-          this.$message.success('修改状态成功了')
+          this.$message.success('恭喜你,删除用户成功了')
+          if (this.userList.length === 1 && this.current > 1) this.current--
+          this.getUserList()
         } else {
-          this.$message.danger('修改状态失败了')
+          this.$message.danger('删除用户失败了')
         }
-      })
-    },
-    delUser(row) {
-      this.$confirm('亲,你确定要删除这个用户吗?', '提示', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }).then(() => {
-        this.axios.delete(`users/${row.id}`).then(res => {
-          let {meta: {status}} = res.data
-          if (status === 200) {
-            this.$message.success('恭喜你,删除用户成功了')
-            if (this.userList.length === 1 && this.current > 1) {
-              this.current--
-            }
-            this.getUserList()
-          } else {
-            this.$message.danger('删除用户失败了')
-          }
-        })
-      }).catch(() => {
-        this.$message({
-          type: 'info',
-          message: '取消删除'
-        })
-      })
+      } catch (e) {
+        this.$message.error('取消删除')
+      }
     },
     showAddDialog() {
       this.addDialogVisible = true
     },
     addUser() {
-      this.$refs.addForm.validate(valid => {
+      this.$refs.addForm.validate(async valid => {
         if (valid) {
-          this.axios.post(`users`, this.addForm).then(res => {
-            let {meta: {status}} = res.data
-            if (status === 201) {
-              this.$message.error('恭喜你添加用户成功')
-              this.$refs.addForm.resetFields()
-              this.addDialogVisible = false
-              this.total++
-              this.current = Math.ceil(this.total / this.pageSize)
-              this.getUserList()
-            } else {
-              this.$message.error('添加用户失败')
-            }
-          })
+          let res = await this.axios.post(`users`, this.addForm)
+          let {meta: {status}} = res.data
+          if (status === 201) {
+            this.$message.error('恭喜你添加用户成功')
+            this.$refs.addForm.resetFields()
+            this.addDialogVisible = false
+            this.total++
+            this.current = Math.ceil(this.total / this.pageSize)
+            this.getUserList()
+          } else {
+            this.$message.error('添加用户失败')
+          }
         } else {
-          console.log('失败')
+          // console.log('失败')
           return false
         }
       })
@@ -242,26 +266,64 @@ export default {
       this.editForm = row
     },
     editUser() {
-      this.$refs.editForm.validate(valid => {
+      this.$refs.editForm.validate(async valid => {
         if (valid) {
-          this.axios.put(`users/${this.editForm.id}`, {
+          let res = await this.axios.put(`users/${this.editForm.id}`, {
             email: this.editForm.email,
             mobile: this.editForm.mobile
-          }).then(res => {
-            let {meta: {status}} = res.data
-            if (status === 200) {
-              this.editDialogVisible = false
-              this.$refs.editForm.resetFields()
-              this.getUserList()
-              this.$message.success('恭喜你,用户修改成功')
-            } else {
-              this.$message.error('很遗憾,用户修改成功')
-            }
           })
+          let {meta: {status}} = res.data
+          if (status === 200) {
+            this.editDialogVisible = false
+            this.$refs.editForm.resetFields()
+            this.getUserList()
+            this.$message.success('恭喜你,用户修改成功')
+          } else {
+            this.$message.error('很遗憾,用户修改成功')
+          }
         } else {
           return false
         }
       })
+    },
+    async showAssignDialog (user) {
+      this.assignDialogVisible = true
+      this.assignForm.id = user.id
+      this.assignForm.username = user.username
+
+      let res = await this.axios.get(`users/${user.id}`)
+      let {meta: {status}, data} = res.data
+      if (status === 200) {
+        if (data.rid === -1) {
+          this.assignForm.rid = ''
+        } else {
+          this.assignForm.rid = data.rid
+        }
+      }
+      this.getRoleList()
+    },
+    async getRoleList() {
+      let res = await this.axios.get('roles')
+      let {meta: {status}, data} = res.data
+      if (status === 200) {
+        this.options = data
+        console.log(this.options)
+      }
+    },
+    async assignRole() {
+      if (!this.assignForm.rid) {
+        this.$message.error('请选择一个角色')
+        return
+      }
+      let res = await this.axios.put(`users/${this.assignForm.id}/role`, {
+        rid: this.assignForm.rid
+      })
+      let {meta: {status}} = res.data
+      if (status === 200) {
+        this.assignDialogVisible = false
+        this.getUserList()
+        this.$message.success('分配角色成功了')
+      }
     }
   },
   created() {
@@ -271,10 +333,7 @@ export default {
 </script>
 
 <style  scoped>
-.el-breadcrumb{
-    height: 30px;
-    line-height: 30px;
-}
+
 .input-with-select{
     width: 300px;
     margin-bottom: 5px;

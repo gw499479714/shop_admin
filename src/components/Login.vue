@@ -46,21 +46,20 @@ export default {
       this.$refs.form.resetFields()
     },
     login() {
-      this.$refs.form.validate(valid => {
+      this.$refs.form.validate(async valid => {
         if (valid) {
-          this.axios({
+          let res = await this.axios({
             url: 'login',
             method: 'post',
             data: this.form
-          }).then(res => {
-            if (res.data.meta.status === 200) {
-              this.$message.success('登录成功')
-              localStorage.setItem('token', res.data.data.token)
-              this.$router.push('/home')
-            } else {
-              this.$message.error('用户名或者密码错误')
-            }
           })
+          if (res.data.meta.status === 200) {
+            this.$message.success('登录成功')
+            localStorage.setItem('token', res.data.data.token)
+            this.$router.push('/home')
+          } else {
+            this.$message.error('用户名或者密码错误')
+          }
         } else {
           return false
         }
